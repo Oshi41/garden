@@ -1,0 +1,14 @@
+{
+  "name": "garden",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+  },
+  "keywords": ["garden", "game"],
+  "author": "Oshi41",
+  "license": "MIT",
+  "description": "",
+  "dependencies": {
+    "@seald-io/nedb": "latest"
+  }
+}

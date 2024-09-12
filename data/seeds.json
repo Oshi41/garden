@@ -1,0 +1,26 @@
+[
+    {
+        "name": "wheat",
+        "stages": 4,
+        "growth": 5,
+        "fragility": 50
+    },
+    {
+        "name": "potato",
+        "stages": 3,
+        "growth": 10,
+        "fragility": 20
+    },
+    {
+        "name": "carrot",
+        "growth": 4,
+        "stages": 4,
+        "fragility": 70
+    },
+    {
+        "name": "dandelion",
+        "growth": 3,
+        "stages": 4,
+        "fragility": 10
+    }
+]
