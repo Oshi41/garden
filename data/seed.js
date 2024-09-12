@@ -8,8 +8,9 @@ export class Seed {
      * @param stages {number}
      * @param time {number}
      * @param fragility {number}
+     * @param max_result {number}
      */
-    constructor(name, stages, time, fragility) {
+    constructor(name, stages, time, fragility, max_result) {
         /**
          * Plant name
          * @type {string}
@@ -46,6 +47,12 @@ export class Seed {
          */
         this.per_stage = this.time / this.stages;
 
+        /**
+         * Amount of seed to return after collect
+         * @type {number}
+         */
+        this.max_result = max_result;
+
         id2seed.set(this.index, this);
     }
 }
@@ -61,7 +68,7 @@ export function seed_from_id(id) {
 const sec = 1000, min = 60*sec;
 
 
-new Seed('wheat', 4, 5*min, 0.5);
-new Seed('potato', 3, 10*min, 0.4);
-new Seed('carrot', 4, 3*min, 0.7);
-new Seed('dandelion', 2, 2*min, 0.1);
+new Seed('wheat', 4, 5*min, 0.5, 3);
+new Seed('potato', 3, 10*min, 0.4, 5);
+new Seed('carrot', 4, 3*min, 0.7, 3);
+new Seed('dandelion', 2, 2*min, 0.1, 2);

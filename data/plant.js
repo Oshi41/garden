@@ -52,7 +52,7 @@ class Plant {
      * Should delete plant after decay
      * @returns {boolean}
      */
-    get should_delete(){
+    get is_dead(){
         return this.stage <= -this.seed.stages;
     }
 
@@ -73,14 +73,6 @@ class Plant {
     }
 
     /**
-     * Can grow or decay
-     * @returns {boolean}
-     */
-    can_increment() {
-        return !this.should_delete && !this.is_finished && this.about_time;
-    }
-
-    /**
      * Increment plant state.
      * @returns {boolean} - true - fully grown, false - should remove plant, null otherwise
      */
@@ -95,7 +87,7 @@ class Plant {
             this.stage--;
         }
 
-        if (this.should_delete) return false;
+        if (this.is_dead) return false;
         if (this.is_finished) return true;
     }
 }
