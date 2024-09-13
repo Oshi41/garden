@@ -2,7 +2,7 @@ import {chunk_from_point} from './location.js';
 import {Table, MapList} from "./storage.js";
 import {Plant} from "./plant.js";
 
-class Chunk {
+export class Chunk {
     /*** @type {Table<Plant>}*/
     #plants = new Table();
     /*** @type {MapList<number, Plant>}*/
@@ -12,10 +12,22 @@ class Chunk {
         const [i, j] = chunk_from_point(x, y);
         this.i = i;
         this.j = j;
+
+        if (process?.env?.NODE_TEST_CONTEXT) {
+            this.t = {
+                /*** @type {Table<Plant>}*/
+                plants: this.#plants,
+                /*** @type {MapList<number, Plant>}*/
+                queue: this.#queue,
+            };
+        }
     }
 
     #log(...msg) {
         console.log(`chunk [${this.i}:${this.j}]`, ...msg);
+    }
+    #err(...msg) {
+        console.error(`chunk [${this.i}:${this.j}]`, ...msg);
     }
 
     /**
@@ -29,8 +41,13 @@ class Chunk {
 
         if (times.length) {
             const next = times[0];
-            this.interval = setTimeout(this.#tick, next - now);
-            this.#log(`Next tick after ${next - now} mls`);
+            const diff = next - now;
+            if (diff > 0) {
+                this.interval = setTimeout(this.#tick, diff);
+                this.#log(`Next tick after ${diff} mls`);
+            } else {
+                this.#err(`Diff is less than 0 ${diff} mls`);
+            }
         } else {
             this.#log(`No plants here`);
         }
@@ -56,8 +73,10 @@ class Chunk {
 
         if (!plant.is_finished && !plant.is_dead) {
             this.#log('scheduling', plant);
-            this.#queue.set(plant.last_check + plant.seed.per_stage, plant);
+            this.#queue.set(plant.last_check.valueOf() + plant.seed.per_stage, plant);
         }
+
+        return true;
     }
 
     /**
