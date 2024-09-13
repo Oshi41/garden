@@ -30,7 +30,7 @@ export class Table {
     remove(x, y) {
         const line = this.#map.get(x);
         if (!line) return false;
-        return line.remove(y);
+        return line.delete(y);
     }
 
     /**
@@ -41,7 +41,7 @@ export class Table {
      */
     set(x, y, item) {
         let line = this.#map.get(x);
-        if (line)
+        if (!line)
             this.#map.set(x, line = new Map());
         line.set(y, item);
     }
