@@ -10,5 +10,9 @@
   "description": "",
   "dependencies": {
     "@seald-io/nedb": "latest"
+  },
+  "devDependencies": {
+    "sinon": "latest",
+    "@types/sinon": "latest"
   }
 }

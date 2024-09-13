@@ -55,6 +55,14 @@ export class Seed {
 
         id2seed.set(this.index, this);
     }
+
+    /**
+     * Generates random drop from seed type
+     * @returns {number}
+     */
+    random_drop() {
+        return 1 + Math.floor(Math.random() * (this.max_result - 1));
+    }
 }
 
 /**
@@ -65,10 +73,18 @@ export function seed_from_id(id) {
     return id2seed.get(id);
 }
 
-const sec = 1000, min = 60*sec;
+/**
+ * All existing seeds
+ * @returns {Seed[]}
+ */
+export function all_seeds() {
+    return Array.from(id2seed.values());
+}
+
+const sec = 1000, min = 60 * sec;
 
 
-new Seed('wheat', 4, 5*min, 0.5, 3);
-new Seed('potato', 3, 10*min, 0.4, 5);
-new Seed('carrot', 4, 3*min, 0.7, 3);
-new Seed('dandelion', 2, 2*min, 0.1, 2);
+new Seed('wheat', 4, 5 * min, 0.5, 3);
+new Seed('potato', 3, 10 * min, 0.4, 5);
+new Seed('carrot', 4, 3 * min, 0.7, 3);
+new Seed('dandelion', 2, 2 * min, 0.1, 2);
