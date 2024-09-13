@@ -87,7 +87,7 @@ export class Plant {
     tick() {
         this.last_check = new Date();
 
-        if (this.damaged)
+        if (!this.damaged)
             this.stage++;
 
         if (this.damaged || Math.random() < this.seed.fragility) {
