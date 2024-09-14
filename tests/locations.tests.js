@@ -1,6 +1,6 @@
 import {deepEqual as de} from 'assert'
 import {describe, it, beforeEach} from 'node:test';
-import * as loc from '../data/location.js';
+import {get_chunk_size, chunk_from_point, t as test_location} from '../data/location.js';
 import {createSandbox} from 'sinon';
 import {distance} from "../data/location.js";
 
@@ -15,12 +15,12 @@ describe('chunk_from_point', () => {
 
     it('[0:0]', (t) => {
         const size = 100;
-        loc.t.chunk_size = size;
+        test_location.set_chunk_size(size);
 
         for (let x = 0; x < size; x++) {
             for (let y = 0; y < size; y++) {
-                const [i, j] = loc.chunk_from_point(x, y);
-                const msg = `pos [${x}:${y}], chunk: [${i}:${j}], chunk_size: ${loc.chunk_size}`;
+                const [i, j] = chunk_from_point(x, y);
+                const msg = `pos [${x}:${y}], chunk: [${i}:${j}], chunk_size: ${get_chunk_size()}`;
                 de(i, 0, msg);
                 de(j, 0, msg);
             }
@@ -29,12 +29,12 @@ describe('chunk_from_point', () => {
 
     it('[-1, -1] [1, 1]', (t) => {
         const size = 100;
-        loc.t.chunk_size = size;
+        test_location.set_chunk_size(size);
 
         for (let x = (size - 1) * -1; x < 0; x++) {
             for (let y = (size - 1) * -1; y < 0; y++) {
-                const [i, j] = loc.chunk_from_point(x, y);
-                const msg = `pos [${x}:${y}], chunk: [${i}:${j}], chunk_size: ${loc.chunk_size}`;
+                const [i, j] = chunk_from_point(x, y);
+                const msg = `pos [${x}:${y}], chunk: [${i}:${j}], chunk_size: ${get_chunk_size()}`;
                 de(i, -1, msg);
                 de(j, -1, msg);
             }
@@ -42,8 +42,8 @@ describe('chunk_from_point', () => {
 
         for (let x = size; x < size * 2; x++) {
             for (let y = size; y < size * 2; y++) {
-                const [i, j] = loc.chunk_from_point(x, y);
-                const msg = `pos [${x}:${y}], chunk: [${i}:${j}], chunk_size: ${loc.chunk_size}`;
+                const [i, j] = chunk_from_point(x, y);
+                const msg = `pos [${x}:${y}], chunk: [${i}:${j}], chunk_size: ${get_chunk_size()}`;
                 de(i, 1, msg);
                 de(j, 1, msg);
             }

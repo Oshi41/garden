@@ -1,0 +1,67 @@
+const levels = {
+    debug: 0,
+    log: 1,
+    error: 2,
+    none: Number.MAX_SAFE_INTEGER,
+};
+
+let min_level = 'debug';
+
+export function get_min_level() {
+    return min_level;
+}
+
+export function set_min_level(lvl) {
+    min_level = lvl;
+}
+
+const date_format = new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: 'UTC',
+});
+const duration_format = new Intl.RelativeTimeFormat('en-US', {
+    numeric: 'always',
+    localeMatcher: 'best fit',
+    style: 'long',
+});
+
+export class Logger {
+    #header;
+
+    /**
+     * @param header {string}
+     */
+    constructor(header) {
+        this.#header = header;
+
+        this.log = (...msg) => this.#write_log('log', ...msg);
+        this.debug = (...msg) => this.#write_log('debug', ...msg);
+        this.error = (...msg) => this.#write_log('error', ...msg);
+    }
+
+    #write_log(level, ...msg) {
+        if (levels[level] < levels[get_min_level()]) return;
+
+        const date = new Date();
+        const time = `${date_format.format(date)}.${date.getUTCMilliseconds().toString().padStart(3, '0')}`;
+
+        console[level](time, this.#header, ...msg);
+    }
+
+    time_start(label) {
+        const date = Date.now();
+        return {
+            stop: () => {
+                const diff = Date.now() - date;
+                this.log(label, duration_format.format(diff, 'seconds'));
+            }
+        };
+    }
+}

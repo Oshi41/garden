@@ -1,10 +1,13 @@
 import {Seed, seed_from_id} from "./seed.js";
 import {chunk_from_point} from './location.js';
+import {Logger} from "../logger.js";
 
 export class Plant {
     #x;
     #y;
     #seed;
+    /*** @type {Logger}*/
+    #logger;
 
     /**
      * @param x {number}
@@ -15,11 +18,20 @@ export class Plant {
      * @param last_check {Date}
      */
     constructor(x, y, type, stage = 0, damaged = false, last_check = new Date()) {
+        
         this.#x = x;
         this.#y = y;
         this.#seed = type instanceof Seed
             ? type
             : seed_from_id(type);
+
+        this.#logger = new Logger(`[PLANT ${x}:${y}]`);
+        
+        if (!this.seed) {
+            const def_seed = seed_from_id(0);
+            this.#logger.error('seed is unknown:', this.#seed, 'reset to defaults:', def_seed.name);
+            this.#seed = def_seed;
+        }
 
         /**
          * Current stage
@@ -87,10 +99,13 @@ export class Plant {
     tick() {
         this.last_check = new Date();
 
-        if (!this.damaged)
+        if (!this.damaged) {
+            this.#logger.debug('grow');
             this.stage++;
+        }
 
         if (this.damaged || Math.random() < this.seed.fragility) {
+            this.#logger.debug('decay');
             this.damaged = true;
             this.stage--;
         }
@@ -100,12 +115,13 @@ export class Plant {
     }
 
     toString() {
-        const [i, j] = chunk_from_point(this.x, this.y);
-        let str = `c[${i}:${j}]p[${this.x}:${this.y}] ${this.seed?.name || 'unknown plant'}`;
+        const args = [`Plant=${this.seed.name || 'unk'}`, `(${this.#x}:${this.#y})`, `stage=${this.stage}`];
+        if (this.damaged)
+            args.push('dmg');
         if (this.is_dead)
-            str += ' (is_dead)';
+            args.push('dead');
         if (this.is_finished)
-            str += ' (is_finished)';
-        return str;
+            args.push('finish');
+        return `{${args.join(', ')}}`;
     }
 }

@@ -1,4 +1,8 @@
-export let chunk_size = 1000;
+let chunk_size = 1000;
+
+export function get_chunk_size() {
+    return chunk_size;
+}
 
 /**
  * uniq hash for same cords
@@ -19,16 +23,16 @@ export function point_hash(x, y) {
 export function chunk_from_point(x, y) {
 
     if (x < 0)
-        x -= chunk_size;
+        x -= get_chunk_size();
 
     if (y < 0)
-        y -= chunk_size;
+        y -= get_chunk_size();
 
-    x -= (x % chunk_size);
-    y -= (y % chunk_size);
+    x -= (x % get_chunk_size());
+    y -= (y % get_chunk_size());
 
-    x /= chunk_size;
-    y /= chunk_size;
+    x /= get_chunk_size();
+    y /= get_chunk_size();
 
     return [x, y];
 }
@@ -43,7 +47,7 @@ export function distance(from, to) {
 }
 
 export const t = {
-    set chunk_size(val) {
+    set_chunk_size(val) {
         chunk_size = val;
     }
 }
