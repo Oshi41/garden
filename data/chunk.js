@@ -120,7 +120,7 @@ export class Chunk {
     }
 
     /**
-     *
+     * Perform plant seed action
      * @param seed {Seed}
      * @param x {number}
      * @param y {number}
