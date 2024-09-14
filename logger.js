@@ -63,10 +63,13 @@ export class Logger {
     time_start(label) {
         const date = Date.now();
         return {
+            /**
+             * @type {()=>void}
+             */
             stop: () => {
                 const diff = Date.now() - date;
                 this.log(label, duration_format.format(diff, 'seconds'));
-                this.post_metric(label+'_time', diff);
+                this.post_metric(label + '_time', diff);
             }
         };
     }

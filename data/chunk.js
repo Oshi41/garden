@@ -1,9 +1,18 @@
+import {EventEmitter} from 'node:events';
 import {chunk_from_point} from './location.js';
 import {Table, MapList} from "./storage.js";
 import {Plant} from "./plant.js";
 import {Logger} from "../logger.js";
 
-export class Chunk {
+/**
+ * Fires if chunk has no plants
+ * @fires Chunk#empty_chunk
+ * @event Chunk#seed_planted
+ * @event Chunk#weed_removed
+ * @event Chunk#plant_collected
+ * @event Chunk#plant_dead
+ */
+export class Chunk extends EventEmitter {
     /*** @type {Table<Plant>}*/
     #plants = new Table();
     /*** @type {MapList<number, Plant>}*/
@@ -12,6 +21,7 @@ export class Chunk {
     #logger;
 
     constructor(x, y) {
+        super();
         const [i, j] = chunk_from_point(x, y);
         this.i = i;
         this.j = j;
@@ -29,6 +39,8 @@ export class Chunk {
 
     /**
      * Scheduling next update
+     * @event Chunk#empty_chunk
+     * @type {Chunk}
      */
     #schedule() {
         clearTimeout(this.interval);
@@ -59,6 +71,8 @@ export class Chunk {
             this.#logger.post_metric('empty_chunk', {
                 chunk: {i: this.i, j: this.j},
             });
+
+            this.emit('empty_chunk', this);
         }
     }
 
@@ -125,12 +139,16 @@ export class Chunk {
      * @param x {number}
      * @param y {number}
      * @returns {boolean}
+     *
+     * @event Chunk#seed_planted
+     * @type {{seed: Seed, x: number, y: number}}
      */
     plant_seed(seed, x, y) {
         const plant = new Plant(x, y, seed);
         if (!this.#add(plant)) return false;
 
         this.#schedule();
+        this.emit('seed_planted', {seed, x, y});
         return true;
     }
 
@@ -140,6 +158,12 @@ export class Chunk {
      * @param x {number}
      * @param y {number}
      * @return {null | [] | [number, Seed]}
+     *
+     * @event Chunk#weed_removed
+     * @type {{plant: Plant}}
+     *
+     * @event Chunk#plant_collected
+     * @type {{plant: Plant}}
      */
     interact(x, y) {
         const plant = this.#plants.get(x, y);
@@ -154,6 +178,7 @@ export class Chunk {
             this.#logger.post_metric('remove_weed', {
                 pos: {x, y, i: this.i, j: this.j},
             });
+            this.emit('weed_removed', {plant});
             return [];
         }
 
@@ -166,6 +191,7 @@ export class Chunk {
                 amount,
                 seed: plant.seed.name,
             });
+            this.emit('plant_collected', {plant});
             return [amount, plant.seed];
         }
 
@@ -178,7 +204,17 @@ export class Chunk {
     }
 
     /**
+     * Gets all chunk data
+     * @returns {Plant[]}
+     */
+    get_data() {
+        return Array.from(this.#plants.get_all());
+    }
+
+    /**
      * Executing plant growth
+     * @event Chunk#plant_dead
+     * @type {{plant: Plant}}
      */
     #tick() {
         const timer = this.#logger.time_start('tick');
@@ -203,6 +239,7 @@ export class Chunk {
                             seed: plant.seed.name,
                         });
                         this.#plants.remove(plant.x, plant.y);
+                        this.emit('plant_dead', {plant});
                         break;
 
                     default:
