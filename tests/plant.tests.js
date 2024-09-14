@@ -9,7 +9,7 @@ describe('Plant', () => {
     let sb;
 
     beforeEach(() => {
-        sb?.reset();
+        sb?.restore();
         sb = createSandbox();
     });
 

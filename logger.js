@@ -55,13 +55,27 @@ export class Logger {
         console[level](time, this.#header, ...msg);
     }
 
+    /**
+     * Starts timer to see execution time
+     * @param label
+     * @returns {{stop: *}}
+     */
     time_start(label) {
         const date = Date.now();
         return {
             stop: () => {
                 const diff = Date.now() - date;
                 this.log(label, duration_format.format(diff, 'seconds'));
+                this.post_metric(label+'_time', diff);
             }
         };
+    }
+
+    /**
+     * Posting metric to monitor
+     * @param name {string} metric name
+     * @param amount {any}
+     */
+    post_metric(name, amount) {
     }
 }
