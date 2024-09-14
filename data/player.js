@@ -1,6 +1,6 @@
 import {distance} from "./location.js";
 import {Logger} from "../logger.js";
-import {seed_from_id} from "./seed.js";
+import {Seed, seed_from_id} from "./seed.js";
 
 /**
  * @template T
@@ -126,7 +126,7 @@ export class Player {
      * @returns {number}
      */
     get interaction_timeout() {
-        return 1000;
+        return 400;
     }
 
     /**
@@ -171,7 +171,7 @@ export class Player {
 
     /**
      * Updating player position
-     * @param val {x:number, y: number}
+     * @param val {{x:number, y: number}}
      */
     set cords(val) {
         if (!this.#pos.update(val)) return;
@@ -194,6 +194,7 @@ export class Player {
     #check_interaction(x, y) {
         // prevent interaction spam
         if (!this.#interact.update(Date.now())) return false;
+
         if (distance(this.cords, {x, y}) > this.reach_limit) {
             const msg = {
                 id: this.id,
@@ -216,6 +217,9 @@ export class Player {
      * @return {boolean}
      */
     plant(seed, chunk, x, y) {
+        x = Math.floor(x);
+        y = Math.floor(y);
+
         if (!this.#check_interaction(x, y)) return false;
 
         // checking amount
@@ -234,6 +238,11 @@ export class Player {
 
         // remove from inventory
         this.#inventory.set(seed?.index, amount - 1);
+
+        const msg = {id: this.id, seed: seed.name, pos: {x, y},};
+        this.#logger.debug('created new plant', msg);
+        this.#logger.post_metric('planted', msg);
+
         return true;
     }
 
@@ -244,6 +253,9 @@ export class Player {
      * @param y {number}
      */
     interact(chunk, x, y) {
+        x = Math.floor(x);
+        y = Math.floor(y);
+
         if (!this.#check_interaction(x, y)) return false;
 
         const result = chunk.interact(x, y);

@@ -1,7 +1,7 @@
 import {deepEqual as de} from 'assert'
 import {describe, it, beforeEach} from 'node:test';
 import {createSandbox} from 'sinon';
-import {Seed} from '../data/seed.js';
+import {Seed, seed_from_id} from '../data/seed.js';
 import {Chunk} from '../data/chunk.js';
 import {Player} from '../data/player.js';
 import {distance} from "../data/location.js";
@@ -34,11 +34,10 @@ describe('Player', () => {
     });
 
     describe('interaction', () => {
-        it('works', () => {
+        it('interact flow', () => {
             // always success
             sb.stub(Math, 'random').returns(1);
 
-            const player = new Player('1', 0, 0);
             de(player.cords, {x: 0, y: 0});
 
             sb.clock.tick(sec);
@@ -98,6 +97,43 @@ describe('Player', () => {
                     }
                 }
             }
+        });
+        it('plant flow', () => {
+            // always success
+            sb.stub(Math, 'random').returns(1);
+
+            /**
+             * Move player
+             * @param x {1 | 0}
+             * @param y {1 | 0}
+             */
+            function move_player(x, y) {
+                player.cords = {
+                    x: player.cords.x + x,
+                    y: player.cords.y + y,
+                };
+                sb.clock.tick(sec);
+            }
+
+            const seed = 0;
+            const init_amount = 200;
+
+            chunk = new Chunk(50, 50);
+            player = new Player('1', 50.0345683453, 50.0232123124, [[seed, init_amount]]);
+
+            de(player.t.inventory.get(seed), init_amount);
+
+            for (let x = 0; x < 10; x++) {
+                move_player(1, 0);
+                for (let y = 0; y < 10; y++) {
+                    move_player(0, 1);
+                    const amount = player.t.inventory.get(seed);
+                    de(player.plant(seed_from_id(seed), chunk, player.cords.x, player.cords.y), true);
+                    de(player.t.inventory.get(seed), amount - 1);
+                }
+            }
+
+            de(Array.from(chunk.t.plants.get_all()).length, Math.pow(10, 2));
         });
     });
 });
