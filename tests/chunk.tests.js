@@ -2,7 +2,7 @@ import {deepEqual as de} from 'assert'
 import {describe, it, beforeEach} from 'node:test';
 import {createSandbox} from 'sinon';
 import {get_chunk_size, chunk_from_point, t as test_location} from '../data/location.js';
-import {get_min_level, set_min_level} from '../logger.js';
+import {get_min_level, set_min_level} from '../util/logger.js';
 import {Chunk} from "../data/chunk.js";
 import {Seed, all_seeds, seed_from_id} from "../data/seed.js";
 import {Plant} from "../data/plant.js";

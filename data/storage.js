@@ -19,12 +19,16 @@ export class Table {
     /**
      *
      * @param x {number}
-     * @param y {number}
+     * @param y {number | null}
      * @returns {boolean}
      */
     has(x, y) {
-        const line = this.#map.get(x);
-        return line?.has(y);
+        let res = this.#map.get(x);
+        if (y !== undefined) {
+            res = res?.get(y);
+        }
+
+        return !!res;
     }
 
     remove(x, y) {
@@ -43,13 +47,48 @@ export class Table {
         let line = this.#map.get(x);
         if (!line)
             this.#map.set(x, line = new Map());
-        line.set(y, item);
+        if (y !== undefined && item !== undefined) {
+            line.set(y, item);
+        }
     }
 
     * get_all() {
         for (let [, map] of this.#map) {
             for (let [, item] of map) {
                 yield item;
+            }
+        }
+    }
+
+    /**
+     * Remove all values by predicate
+     * @param fn {(x: number, y: number, value: T) => boolean}
+     * @return {Table<T>} removed data
+     */
+    remove_if(fn) {
+        const result = new Table();
+
+        for (let [x, map] of this.#map) {
+            for (let y of Array.from(map.keys())) {
+                const value = map.get(y);
+                if (fn(x, y, value)) {
+                    map.delete(y);
+                    result.set(x, y, value);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * All table keys
+     * @returns {Generator<{x: number, y: number}, void, *>}
+     */
+    * keys() {
+        for (let [x, map] of this.#map) {
+            for (let [y,] of map) {
+                yield {x, y};
             }
         }
     }
@@ -133,14 +172,14 @@ export class MapList {
         return this.#inner.delete(key);
     }
 
-    clear(){
+    clear() {
         this.#inner.clear();
     }
 
     /**
      * @returns {TKey[]}
      */
-    keys(){
+    keys() {
         return Array.from(this.#inner.keys());
     }
 }

@@ -46,6 +46,10 @@ export class Logger {
         this.error = (...msg) => this.#write_log('error', ...msg);
     }
 
+    get header() {
+        return this.#header;
+    }
+
     #write_log(level, ...msg) {
         if (levels[level] < levels[get_min_level()]) return;
 

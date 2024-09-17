@@ -2,7 +2,7 @@ import {EventEmitter} from 'node:events';
 import {chunk_from_point} from './location.js';
 import {Table, MapList} from "./storage.js";
 import {Plant} from "./plant.js";
-import {Logger} from "../logger.js";
+import {Logger} from "../util/logger.js";
 
 /**
  * Fires if chunk has no plants

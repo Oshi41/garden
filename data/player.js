@@ -1,5 +1,5 @@
 import {distance} from "./location.js";
-import {Logger} from "../logger.js";
+import {Logger} from "../util/logger.js";
 import {Seed, seed_from_id} from "./seed.js";
 
 /**
@@ -47,6 +47,14 @@ class Recorded {
         return this.#current;
     }
 }
+
+/**
+ * @typedef {Object} PlayerDTO
+ * @property {string} id
+ * @property {number} x
+ * @property {number} y
+ * @property {[number, number][]} container
+ */
 
 export class Player {
     /*** @type {string}*/

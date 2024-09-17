@@ -1,6 +1,16 @@
 import {Seed, seed_from_id} from "./seed.js";
 import {chunk_from_point} from './location.js';
-import {Logger} from "../logger.js";
+import {Logger} from "../util/logger.js";
+
+/**
+ * @typedef {Object} PlantDTO
+ * @property {number} x
+ * @property {number} y
+ * @property {number} seed
+ * @property {number} stage
+ * @property {boolean} dmg
+ * @property {number} last
+ */
 
 export class Plant {
     #x;
