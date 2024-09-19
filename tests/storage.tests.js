@@ -1,5 +1,4 @@
 import {deepEqual as de} from 'assert'
-import {describe, it, beforeEach} from 'node:test';
 import {MapList, Table} from '../data/storage.js';
 
 describe('Table', () => {

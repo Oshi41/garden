@@ -1,6 +1,4 @@
-let index = 0;
-/*** @type {Map<number, Seed>}*/
-const id2seed = new Map();
+const seeds = [];
 
 export class Seed {
     /**
@@ -11,6 +9,7 @@ export class Seed {
      * @param max_result {number}
      */
     constructor(name, stages, time, fragility, max_result) {
+
         /**
          * Plant name
          * @type {string}
@@ -39,7 +38,7 @@ export class Seed {
          * Type index
          * @type {number}
          */
-        this.index = index++;
+        this.index = seeds.length;
 
         /**
          * Mls per stage
@@ -53,7 +52,7 @@ export class Seed {
          */
         this.max_result = max_result;
 
-        id2seed.set(this.index, this);
+        seeds.push(this);
     }
 
     /**
@@ -70,7 +69,7 @@ export class Seed {
  * @returns {Seed}
  */
 export function seed_from_id(id) {
-    return id2seed.get(id);
+    return seeds[id];
 }
 
 /**
@@ -78,7 +77,7 @@ export function seed_from_id(id) {
  * @returns {Seed[]}
  */
 export function all_seeds() {
-    return Array.from(id2seed.values());
+    return seeds;
 }
 
 const sec = 1000, min = 60 * sec;

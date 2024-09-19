@@ -11,6 +11,10 @@ export function get_min_level() {
     return min_level;
 }
 
+/**
+ *
+ * @param lvl {keyof levels}
+ */
 export function set_min_level(lvl) {
     min_level = lvl;
 }
@@ -56,6 +60,8 @@ export class Logger {
         const date = new Date();
         const time = `${date_format.format(date)}.${date.getUTCMilliseconds().toString().padStart(3, '0')}`;
 
+        if (level == 'debug')
+            level = 'log';
         console[level](time, this.#header, ...msg);
     }
 

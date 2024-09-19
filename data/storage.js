@@ -63,7 +63,7 @@ export class Table {
     /**
      * Remove all values by predicate
      * @param fn {(x: number, y: number, value: T) => boolean}
-     * @return {Table<T>} removed data
+     * @return {Table<T>} removed legacy
      */
     remove_if(fn) {
         const result = new Table();

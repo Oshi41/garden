@@ -1,49 +1,65 @@
-import cluster from 'cluster';
-import {deepEqual as de, fail} from 'assert'
-import {describe, it, before, beforeEach} from 'node:test';
-import {createSandbox} from 'sinon';
-import {DatabaseWorker} from "../worker/database.js";
-import {GardenWorker} from "../worker/garden.js";
+import {deepEqual as de} from 'assert'
+import sinon from 'sinon';
+import {Garden} from "../logic/garden.js";
+import {all_seeds, seed_from_id} from "../data/seed.js";
+import {random_element, range} from "../util/_.js";
+import {set_min_level} from "../util/logger.js";
 
-if (cluster.isWorker) {
-    const worker = new GardenWorker({
-        id: cluster.worker.id,
-        send: process.send.bind(process),
+describe('Garden', () => {
+    /*** @type {SinonSandbox}*/
+    let sb;
+    beforeEach(() => {
+        sb?.restore()
+        sb = sinon.createSandbox({});
+        sb.useFakeTimers({toFake: ['setTimeout', 'setInterval']});
+        set_min_level('debug');
     });
 
-} else {
-    describe('GardenWorker[cluster]', () => {
-        /** @type {DatabaseWorker}*/
-        let worker;
-        /*** @type {PlantDTO[]}*/
-        let plants;
+    it('plant flow all success', async () => {
+        set_min_level('none');
+        // Math.random() = 1
+        sb.stub(Math, 'random').returns(1);
 
-        before(async () => {
-            for (let i = 0; i < 5; i++) {
-                cluster.fork();
+        let end = 10;
+        let start = -end;
+
+        const garden = new Garden({inMemoryOnly: true});
+        await garden.init();
+
+        for (let x = start; x < end; x++) {
+            for (let y = start; y < end; y++) {
+                await garden.add_plants({x, y, seed: 0});
+                sb.clock.now += 50;
             }
+        }
 
-            worker = new DatabaseWorker({plants: 'plants.jsonl', players: 'players.jsonl'});
+        const {time, stages} = seed_from_id(0);
+
+        for (let i = 0; i < stages - 1; i++) {
+            await sb.clock.tickAsync(time);
+        }
+
+        let search = await garden.t.find({dmg: true});
+        de(search, [], 'should be no damaged plants');
+
+        const has_plants = await Promise.all(
+            range(start, end).flatMap(x => range(start, end).map(y => ({x, y})))
+                .map(pos => garden.has_plant(pos)));
+
+        de(has_plants.every(x => !!x), true, 'plant is not existed');
+
+        search = await garden.t.find({
+            $or: [
+                {x: {$lt: start}},
+                {y: {$lt: start}},
+                {x: {$gt: end}},
+                {y: {$gt: end}},
+            ]
         });
 
-        beforeEach(async () => {
-            plants = Array.from(Array(10_000).keys()).map(x => ({
-                x,
-                y: x + 1,
-                seed: x % 3,
-                last: Date.now(),
-                stage: 0,
-                dmg: false
-            }));
+        de(search, [], 'wrong positioning');
 
-            worker.t.assign_to_workers(plants, {clear: true});
-        });
-
-        it('works', () => {
-            for (let {x, y} of plants) {
-                if (!Object.values(cluster.workers).some(w => w.has_plant(x, y)))
-                    fail(`Plant is missing [${x}:${y}]`);
-            }
-        });
+        search = await garden.t.find({stage: {$ne: stages}});
+        de(search, [], 'wrong stages calculation');
     });
-}
+});

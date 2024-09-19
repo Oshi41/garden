@@ -3,25 +3,31 @@ import {Table} from "../data/storage.js";
 import {Scheduler} from "../util/scheduler.js";
 import {Logger} from "../util/logger.js";
 import Database from '@seald-io/nedb';
-import {seed_from_id} from "../data/seed.js";
+import {all_seeds, seed_from_id} from "../data/seed.js";
+import {arr, clamp, distinct, is_in_test, pick, pretty_print} from "../util/_.js";
 
-/*** @type {string[]}*/
-const mandatory_fields = 'x y seed'.split(' ');
+/**
+ * @typedef {Object} PlantData
+ * @property {number} x
+ * @property {number} y
+ * @property {number} seed
+ * @property {number} stage
+ * @property {boolean} dmg
+ * @property {number} last
+ */
+
+/*** @type {(keyof PlantData)[]}*/
+const mandatory_fields = ['x', 'y', 'seed'];
+/*** @type {(keyof PlantData)[]}*/
 const int_fields = [...mandatory_fields, 'stage'];
 
-function clamp(min, val, max) {
-    if (min < val) return min;
-    if (max < val) return max;
-    return val;
-}
-
 export class Garden {
-    /** @type {Database<PlantDTO>}*/
+    /** @type {Database<PlantData>}*/
     #db;
 
     #logger = new Logger(`Garden [${cluster.worker?.id || 'master'}]`);
 
-    #scheduler = new Scheduler(this.#logger.header);
+    #scheduler = new Scheduler(this.#logger.header, this.#tick.bind(this));
 
     /**
      * @param opts {Database.DataStoreOptions}
@@ -33,6 +39,23 @@ export class Garden {
             // forcing to save file
             await this.#db.compactDatafileAsync();
         });
+
+        if (is_in_test()) {
+            this.t = {
+                /**
+                 * @param {Partial<PlantData>} q
+                 * @returns {Promise<PlantData[]>}
+                 */
+                find: async (q) => {
+                    try {
+                        return await this.#db.findAsync(q);
+                    } catch (e) {
+                        this.#logger.error(`Error during findAsync(${pretty_print(q)})`, e);
+                        throw  e;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -44,14 +67,6 @@ export class Garden {
         await this.#db.loadDatabaseAsync();
 
         await this.#tick();
-    }
-
-    /**
-     * plants count
-     * @returns {Database.Cursor<number>}
-     */
-    async count() {
-        return this.#db.countAsync({});
     }
 
     /**
@@ -68,18 +83,22 @@ export class Garden {
 
     /**
      * Adding new plant(s) to garden
-     * @param plants {PlantDTO | PlantDTO[]}
+     * @param plants {PlantData | PlantData[]}
      * @returns {Promise<{x: number, y: number}[]>}
      */
     async add_plants(plants) {
         const timer = this.#logger.time_start('add_plants');
-        if (!Array.isArray(plants))
-            plants = [plants];
+        plants = arr(plants);
 
         const validated = await Promise.all(plants.map(x => this.#validate_plant(x)));
-        const docs = validated.map(x => x.success).filter(x => !!x);
-        const result = this.#schedule_plants(await this.#db.insertAsync(docs))
-            .map(doc => ({x: doc.x, y: doc.y}));
+        const docs = await this.#db.insertAsync(validated.map(x => x.success).filter(x => !!x));
+
+        this.#logger.debug(`${docs.length} plants added:${docs.map(x => pick(x, 'x', 'y', 'seed'))
+            .map(x => Object.assign(x, {seed: seed_from_id(x.seed).name}))
+            .map(x => pretty_print(x))
+            .join(', ')}`);
+
+        const result = this.#schedule_plants(docs).map(doc => pick(doc, 'x', 'y'));
 
         timer.stop();
         return result;
@@ -95,14 +114,15 @@ export class Garden {
      * - {seed: number, amount: number} if plant collected
      */
     async interact({x, y}) {
-        const plant = await this.#db.findOneAsync({x, y});
+        const pos = {x, y};
+        const plant = await this.#db.findOneAsync(pos);
         if (!plant) {
             this.#logger.debug(`No plant on this location: [${x}:${y}]`);
             return false;
         }
 
         if (plant.dmg) {
-            await this.#db.updateAsync({x, y}, {dmg: false}, {upsert: false, multi: false});
+            await this.#db.updateAsync(pos, {dmg: false}, {upsert: false, multi: false});
             this.#logger.debug(`Weed removed: [${x}:${y}]`);
             return {damaged: false};
         }
@@ -111,7 +131,7 @@ export class Garden {
         if (plant.stage >= seed.stages) {
             const result = {seed: seed.index, amount: seed.random_drop()};
             this.#logger.debug(`Plant collected: [${x}:${y}], "${seed.name}"=${result.amount}`);
-            await this.#db.removeAsync({x, y}, {multi: false});
+            await this.#db.removeAsync(pos, {multi: false});
             return result;
         }
 
@@ -121,8 +141,8 @@ export class Garden {
     /**
      * Validates plant and return validated obj
      * @throws {Error} if checks failed
-     * @param plant {Partial<PlantDTO>}
-     * @returns {Promise<{success: PlantDTO, error: Error}>}
+     * @param plant {Partial<PlantData>}
+     * @returns {Promise<Partial<{success: PlantData, error: Error}>>}
      */
     async #validate_plant(plant) {
         if (mandatory_fields.some(x => !Number.isInteger(plant[x]))) {
@@ -148,11 +168,11 @@ export class Garden {
             return {error: new Error(`seed is missing: ${plant.seed}`)};
         }
 
-        plant.stages ||= 0;
+        plant.stage ||= 0;
         plant.last ||= Date.now();
         plant.dmg = !!plant.dmg;
 
-        plant.stages = clamp(-seed.stages, plant.stages, seed.stages);
+        plant.stage = clamp(-seed.stages, plant.stage, seed.stages);
 
         return {success: plant};
     }
@@ -165,13 +185,12 @@ export class Garden {
         const timer = this.#logger.time_start('#tick');
 
         const now = Date.now();
-        const times = await this.#db.findAsync({}, {last: 1, seed: 1}).sort({last: 1});
-        const tick_now = Array.from(new Set(times
-            .filter(x => now - x.last + seed_from_id(x.seed) <= 0)
-            .map(x => x.last)))
-            .map(x => ({last: x}));
+        const times = await this.#db.findAsync({last: {$lte: now}}, {last: 1, seed: 1}).sort({last: 1});
+        const q = distinct(times.filter(x => x.last + seed_from_id(x.seed).per_stage <= now)
+            .map(x => x.last))
+            .map(last => ({last}));
 
-        const plants = await this.#db.findAsync({$or: tick_now});
+        const plants = await this.#db.findAsync({$or: q});
         const dead = [], updated = [];
         for (let plant of plants) {
             const seed = seed_from_id(plant.seed);
@@ -183,12 +202,12 @@ export class Garden {
             if (!plant.dmg)
                 plant.stage++;
 
-            if (!plant.dmg || Math.random() < seed.fragility) {
+            if (plant.dmg || Math.random() < seed.fragility) {
                 plant.dmg = true;
                 plant.stage--;
             }
 
-            if (plant.stage <= seed.stages)
+            if (plant.stage <= -seed.stages)
                 dead.push(plant);
             else
                 updated.push(plant);
@@ -201,7 +220,7 @@ export class Garden {
             this.#logger.debug(`Updating [${updated.length}] plants`);
         }
 
-        const to_delete = [...dead, ...updated].map(x => ({x: x.x, y: x.y}));
+        const to_delete = [...dead, ...updated].map(x => pick(x, 'x', 'y'));
 
         // remove all documents
         await this.#db.removeAsync({$or: to_delete}, {multi: true});
@@ -218,10 +237,10 @@ export class Garden {
      * @return {T[]}
      */
     #schedule_plants(plants) {
-        const now = Date.now();
-        new Set(plants.map(x => now - x.last + seed_from_id(x.seed))).forEach(next => {
-            this.#scheduler.add(next, this.#tick.bind(this));
-        });
+        for (let {last, seed} of plants) {
+            const next = last + seed_from_id(seed).per_stage;
+            this.#scheduler.add(next);
+        }
         return plants;
     }
 }

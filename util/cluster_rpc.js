@@ -1,6 +1,7 @@
 import cluster from 'cluster';
 import {MapList, Table} from "../data/storage.js";
 import {Logger} from "./logger.js";
+import {arr} from "./_.js";
 
 /**
  * @typedef {Object} Sender
@@ -49,7 +50,7 @@ export function register_rpc_call(name, fn) {
 }
 
 /**
- * Creates function requesting data from other side
+ * Creates function requesting legacy from other side
  * @template T
  * @param sender {Sender} who will receive the message?
  * @param name {string} RPC registered name
@@ -90,8 +91,7 @@ async function handle_message(sender, msg) {
             const error = new Error(`${name} RPC is not registered`);
             return sender.send({rpc_resp: {name, error}});
         }
-        args ||= [];
-        args = Array.isArray(args) ? args : [args];
+        args = arr(args);
 
         try {
             const result = await fn([...args, sender]);
