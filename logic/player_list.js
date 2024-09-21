@@ -1,7 +1,7 @@
 import Database from '@seald-io/nedb';
 import {Logger} from "../util/logger.js";
 import cluster from "cluster";
-import {inc, pick} from "../util/_.js";
+import {inc, is_in_test, pick} from "../util/_.js";
 import {all_seeds} from "../data/seed.js";
 
 /**
@@ -16,7 +16,7 @@ import {all_seeds} from "../data/seed.js";
 
 /**
  * @typedef {Object} PlayerAbilities
- * @property {number} max_speed_per_second
+ * @property {number} max_speed
  * @property {number} timeout
  * @property {number} reach_distance
  * @property {number} view_distance
@@ -37,13 +37,13 @@ import {all_seeds} from "../data/seed.js";
  * @type {PlayerAbilities}
  */
 const default_abilities = {
-    max_speed_per_second: 3,
+    max_speed: 3,
     timeout: 200,
     reach_distance: 1.6,
     view_distance: 30,
 };
 
-export class Player {
+export class PlayerList {
     /** @type {Database<PlayerData>}*/
     #db;
 
@@ -59,6 +59,20 @@ export class Player {
     constructor(opts, abilities = default_abilities) {
         this.#abilities = abilities;
         this.#db = new Database(opts);
+
+        if (is_in_test()) {
+
+            this.t = {
+                /**
+                 * Async find
+                 * @param q {Partial<PlayerData>}
+                 * @returns {Nedb.Cursor<PlayerData[]>}
+                 */
+                find: q => this.#db.findAsync(q),
+                /*** @type {PlayerAbilities}*/
+                abilities: this.#abilities,
+            }
+        }
     }
 
     async init() {
@@ -84,13 +98,13 @@ export class Player {
         }
 
         // going online again (error)
-        if (is_online && Number.isFinite(player.stats.login)) {
+        if (is_online && Number.isFinite(player?.stats?.login)) {
             this.#logger.debug(`already online ${name} ${now - player.stats.login}mls`);
             throw new Error('already online ' + name);
         }
 
         // going offline again (error)
-        if (!is_online && !Number.isFinite(player.stats.login)) {
+        if (!is_online && !Number.isFinite(player?.stats?.login)) {
             this.#logger.debug(`already offline ${name}`);
             throw new Error('already offline ' + name);
         }
@@ -145,23 +159,44 @@ export class Player {
         // checking the interaction spam
         if (!await this.#check_interact_timeout(name)) return false;
 
+        if (![x_delta, y_delta].every(x => Number.isFinite(x))) return false;
+
         // checking if speed is appropriate
-        if (Math.hypot(x_delta, y_delta) > this.#abilities.max_speed_per_second) return false;
+        if (Math.hypot(x_delta, y_delta) > this.#abilities.max_speed) return false;
 
         // incrementing position
         return await this.#update_one({name}, {$inc: {x: x_delta, y: y_delta}});
     }
 
     /**
+     * Teleporting player to location
+     * @param name {string}
+     * @param x {number}
+     * @param y {number}
+     * @returns {Promise<boolean>}
+     */
+    async teleport(name, {x, y}) {
+        // checking the interaction spam
+        if (!await this.#check_interact_timeout(name)) return false;
+
+        if (![x, y].every(x => Number.isFinite(x))) return false;
+
+        return await this.#update_one({name}, {x, y});
+    }
+
+    /**
      * Removing weed / collecting plant
-     * @param player {PlayerData}
+     * @param name {string}
      * @param pos {{x: number, y: number}}
      * @param gardens {IGarden[]}
      * @returns {Promise<boolean>}
      */
-    async interact(player, pos, gardens) {
-        if (!await this.#check_interact_timeout(player.name)) return false;
-        if (Math.hypot(player.x - pos.x, player.y - pos.y) > this.#abilities.reach_distance) return false;
+    async interact(name, pos, gardens) {
+        if (!await this.#check_interact_timeout(name)) return false;
+
+        const player = await this.#db.findOneAsync({name});
+        if (Math.hypot(player.x - pos.x, player.y - pos.y) > this.#abilities.reach_distance)
+            return false;
 
         pos = {
             x: Math.floor(pos.x),
@@ -171,14 +206,16 @@ export class Player {
         const resps = await Promise.all(gardens.map(async x => await x.has_plant(pos) && x));
         /** @type {IGarden} */
         const garden = resps.find(x => !!x);
-        if (!garden) return false;
+        if (!garden)
+            return false;
 
         const resp = await garden.interact(pos);
-        if (!resp) return false;
+        if (!resp)
+            return false;
 
-        const {damaged, seed, amount} = resp;
+        const {weed_removed, seed, amount} = resp;
 
-        if (damaged)
+        if (weed_removed)
             inc(player.stats, 'weed_removed', 1);
         if (amount) {
             inc(player.stats, 'plant_collected', 1);
@@ -197,8 +234,8 @@ export class Player {
         const now = Date.now();
         const q = {
             name,
-            $lte: {'stats.interaction': now - this.#abilities.timeout},
-            $gt: {'stats.online': 0},
+            'stats.interaction': {$lte: now - this.#abilities.timeout},
+            'stats.login': {$gt: 0},
         };
         const modify = {'stats.interaction': now};
         if (await this.#update_one(q, modify)) {

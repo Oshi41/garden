@@ -73,7 +73,7 @@ export class Garden {
      * Checking if has plant here
      * @param x {number}
      * @param y {number}
-     * @returns {boolean}
+     * @returns {Promise<boolean>}
      */
     async has_plant({x, y}) {
         if ([x, y].some(i => !Number.isInteger(i))) return false;
@@ -109,9 +109,9 @@ export class Garden {
      * interacting with plant
      * @param x {number}
      * @param y {number}
-     * @return {Promise<false | {damaged: false} | {seed: number, amount: number}>}
+     * @return {Promise<false | {weed_removed: true} | {seed: number, amount: number}>}
      * - false if no plant on cords
-     * - {damaged: false} if weed collected
+     * - {weed_removed: true} if weed collected
      * - {seed: number, amount: number} if plant collected
      */
     async interact({x, y}) {
@@ -125,7 +125,7 @@ export class Garden {
         if (plant.dmg) {
             await this.#db.updateAsync(pos, {$set: {dmg: false}}, {upsert: false, multi: false});
             this.#logger.debug(`Weed removed: [${x}:${y}]`);
-            return {damaged: false};
+            return {weed_removed: true};
         }
 
         const seed = seed_from_id(plant.seed);
