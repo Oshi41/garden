@@ -3,9 +3,11 @@
   "type": "module",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-  },
-  "keywords": ["garden", "game"],
+  "scripts": {},
+  "keywords": [
+    "garden",
+    "game"
+  ],
   "author": "Oshi41",
   "license": "MIT",
   "description": "",
@@ -13,9 +15,10 @@
     "@seald-io/nedb": "latest"
   },
   "devDependencies": {
-    "sinon": "latest",
-    "mocha": "latest",
+    "@types/mocha": "latest",
     "@types/sinon": "latest",
-    "@types/mocha": "latest"
+    "mocha": "latest",
+    "nyc": "latest",
+    "sinon": "latest"
   }
 }

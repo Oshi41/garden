@@ -1,9 +1,8 @@
 import cluster from 'cluster';
-import {Table} from "../data/storage.js";
 import {Scheduler} from "../util/scheduler.js";
 import {Logger} from "../util/logger.js";
 import Database from '@seald-io/nedb';
-import {all_seeds, seed_from_id} from "../data/seed.js";
+import {seed_from_id} from "../data/seed.js";
 import {arr, clamp, distinct, is_in_test, pick, pretty_print} from "../util/_.js";
 
 /**
@@ -51,9 +50,10 @@ export class Garden {
                         return await this.#db.findAsync(q);
                     } catch (e) {
                         this.#logger.error(`Error during findAsync(${pretty_print(q)})`, e);
-                        throw  e;
+                        throw e;
                     }
-                }
+                },
+                scheduler: this.#scheduler,
             }
         }
     }
@@ -183,14 +183,14 @@ export class Garden {
      */
     async #tick() {
         const timer = this.#logger.time_start('#tick');
+        this.#logger.debug("TICK STARTED");
 
         const now = Date.now();
         const times = await this.#db.findAsync({last: {$lte: now}}, {last: 1, seed: 1}).sort({last: 1});
         const q = distinct(times.filter(x => x.last + seed_from_id(x.seed).per_stage <= now)
-            .map(x => x.last))
-            .map(last => ({last}));
+            .map(x => x.last));
 
-        const plants = await this.#db.findAsync({$or: q});
+        const plants = await this.#db.findAsync({last: {$in: q}});
         const dead = [], updated = [];
         for (let plant of plants) {
             const seed = seed_from_id(plant.seed);
@@ -207,10 +207,21 @@ export class Garden {
                 plant.stage--;
             }
 
-            if (plant.stage <= -seed.stages)
+            if (plant.stage <= -seed.stages) {
                 dead.push(plant);
-            else
+
+                this.#logger.debug(`Deleted`, pretty_print(Object.assign(
+                    pick(plant, 'x', 'y', 'stage'),
+                    {seed: seed_from_id(plant.seed).name}
+                )));
+            } else {
                 updated.push(plant);
+
+                this.#logger.debug(`Updated`, pretty_print(Object.assign(
+                    pick(plant, 'x', 'y', 'stage'),
+                    {seed: seed_from_id(plant.seed).name}
+                )));
+            }
         }
 
         if (dead.length) {
@@ -220,10 +231,10 @@ export class Garden {
             this.#logger.debug(`Updating [${updated.length}] plants`);
         }
 
-        const to_delete = [...dead, ...updated].map(x => pick(x, 'x', 'y'));
+        const to_delete = [...dead, ...updated].map(x => x._id);
 
         // remove all documents
-        await this.#db.removeAsync({$or: to_delete}, {multi: true});
+        await this.#db.removeAsync({_id: {$in: to_delete}}, {multi: true});
 
         // inserting new changed docs and schedule updates
         this.#schedule_plants(await this.#db.insertAsync(updated));
@@ -237,9 +248,13 @@ export class Garden {
      * @return {T[]}
      */
     #schedule_plants(plants) {
-        for (let {last, seed} of plants) {
-            const next = last + seed_from_id(seed).per_stage;
-            this.#scheduler.add(next);
+        for (let {last, seed, stage} of plants) {
+            const seed_obj = seed_from_id(seed);
+            // ignoring full-grown seeds
+            if (Math.abs(stage) < seed_obj.stages) {
+                const next = last + seed_obj.per_stage;
+                this.#scheduler.add(next);
+            }
         }
         return plants;
     }
