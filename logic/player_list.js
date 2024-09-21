@@ -9,6 +9,7 @@ import {all_seeds} from "../data/seed.js";
  * @property {number} interaction
  * @property {number} register
  * @property {number} weed_removed
+ * @property {number} teleported
  * @property {number} plant_collected
  * @property {number | null} login
  * @property {number} play_time
@@ -181,7 +182,7 @@ export class PlayerList {
 
         if (![x, y].every(x => Number.isFinite(x))) return false;
 
-        return await this.#update_one({name}, {x, y});
+        return await this.#update_one({name}, {$set: {x, y}, $inc: {'stats.teleported': 1}});
     }
 
     /**

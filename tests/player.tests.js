@@ -101,10 +101,18 @@ describe("Player", function () {
                 search = await list.t.find({'stats.login': null});
                 de(search, [], 'Should be only 1 online player online');
 
+                await sb.clock.tickAsync(1000);
+
                 resp = await list.set_online('name', false);
                 de(pick(resp, 'name'), {name: 'name'});
                 search = await list.t.find({'stats.login': {$ne: null}});
                 de(search, [], 'Should be only 1 online player offline');
+
+                // recording play time
+                search = await list.t.find({});
+                de(search[0].stats.play_time, 1000);
+
+                await sb.clock.tickAsync(1000);
 
                 resp = await list.set_online('name', true);
                 de(pick(resp, 'name'), {name: 'name'});
@@ -366,6 +374,7 @@ describe("Player", function () {
 
                     const [upd] = await list.t.find({name});
                     de(upd.stats.weed_removed, 1 + (old.stats.weed_removed || 0));
+                    de(upd.stats.teleported, 1 + (old.stats.teleported || 0));
 
                     const [upd_plant] = await gardens[plant.y].t.find(pick(plant, 'x', 'y'));
                     de(upd_plant.dmg, false, 'Plant should be healthy');
