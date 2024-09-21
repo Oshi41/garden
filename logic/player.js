@@ -1,7 +1,7 @@
 import Database from '@seald-io/nedb';
 import {Logger} from "../util/logger.js";
 import cluster from "cluster";
-import {inc, omit, pick} from "../util/_.js";
+import {inc, pick} from "../util/_.js";
 import {all_seeds} from "../data/seed.js";
 
 /**
@@ -217,6 +217,8 @@ export class Player {
      * @returns {Promise<boolean>}
      */
     async #update_one(q, modify) {
+        if (!Object.keys(modify).some(x => x.startsWith('$')))
+            modify = {$set: modify};
         const {numAffected} = await this.#db.updateAsync(q, modify, {upsert: false, multi: false});
         return numAffected == 1;
     }

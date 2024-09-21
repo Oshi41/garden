@@ -73,6 +73,7 @@ export class Garden {
      * Checking if has plant here
      * @param x {number}
      * @param y {number}
+     * @returns {boolean}
      */
     async has_plant({x, y}) {
         if ([x, y].some(i => !Number.isInteger(i))) return false;
@@ -122,7 +123,7 @@ export class Garden {
         }
 
         if (plant.dmg) {
-            await this.#db.updateAsync(pos, {dmg: false}, {upsert: false, multi: false});
+            await this.#db.updateAsync(pos, {$set: {dmg: false}}, {upsert: false, multi: false});
             this.#logger.debug(`Weed removed: [${x}:${y}]`);
             return {damaged: false};
         }
