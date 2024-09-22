@@ -179,6 +179,14 @@ export class Garden {
     }
 
     /**
+     * Plants count
+     * @returns {Nedb.Cursor<number>}
+     */
+    count() {
+        return this.#db.countAsync({});
+    }
+
+    /**
      * Performs plant growing tick
      * @returns {Promise<void>}
      */

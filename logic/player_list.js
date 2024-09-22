@@ -1,8 +1,8 @@
 import Database from '@seald-io/nedb';
 import {Logger} from "../util/logger.js";
 import cluster from "cluster";
-import {inc, is_in_test, pick} from "../util/_.js";
-import {all_seeds} from "../data/seed.js";
+import {inc, is_in_test, pick, pretty_print} from "../util/_.js";
+import {all_seeds, seed_from_id} from "../data/seed.js";
 
 /**
  * @typedef {Object} PlayerStats
@@ -11,6 +11,7 @@ import {all_seeds} from "../data/seed.js";
  * @property {number} weed_removed
  * @property {number} teleported
  * @property {number} plant_collected
+ * @property {number} planted
  * @property {number | null} login
  * @property {number} play_time
  */
@@ -32,7 +33,7 @@ import {all_seeds} from "../data/seed.js";
  * @property {Partial<PlayerStats>} stats
  */
 
-/*** @typedef {Pick<Garden, 'has_plant' | 'add_plants' | 'interact'>} IGarden*/
+/*** @typedef {Pick<Garden, 'has_plant' | 'add_plants' | 'interact' | 'count'>} IGarden*/
 
 /**
  * @type {PlayerAbilities}
@@ -158,12 +159,26 @@ export class PlayerList {
      */
     async set_pos(name, {x_delta, y_delta}) {
         // checking the interaction spam
-        if (!await this.#check_interact_timeout(name)) return false;
+        if (!await this.#check_interact_timeout(name)) {
+            this.#logger.debug(`set_pos denied due to ${name} spam`);
+            return false;
+        }
 
-        if (![x_delta, y_delta].every(x => Number.isFinite(x))) return false;
+        if (![x_delta, y_delta].every(x => Number.isFinite(x))) {
+            this.#logger.debug(`wrong set_pos arguments`, pretty_print({x_delta, y_delta}));
+            return false;
+        }
 
         // checking if speed is appropriate
-        if (Math.hypot(x_delta, y_delta) > this.#abilities.max_speed) return false;
+        if (Math.hypot(x_delta, y_delta) > this.#abilities.max_speed) {
+            this.#logger.log(`too fast player`, pretty_print({
+                x_delta,
+                y_delta,
+                speed: Math.hypot(x_delta, y_delta),
+                max_allowed: this.#abilities.max_speed,
+            }));
+            return false;
+        }
 
         // incrementing position
         return await this.#update_one({name}, {$inc: {x: x_delta, y: y_delta}});
@@ -178,9 +193,11 @@ export class PlayerList {
      */
     async teleport(name, {x, y}) {
         // checking the interaction spam
-        if (!await this.#check_interact_timeout(name)) return false;
+        if (!await this.#check_interact_timeout(name))
+            return false;
 
-        if (![x, y].every(x => Number.isFinite(x))) return false;
+        if (![x, y].every(x => Number.isFinite(x)))
+            return false;
 
         return await this.#update_one({name}, {$set: {x, y}, $inc: {'stats.teleported': 1}});
     }
@@ -193,11 +210,21 @@ export class PlayerList {
      * @returns {Promise<boolean>}
      */
     async interact(name, pos, gardens) {
-        if (!await this.#check_interact_timeout(name)) return false;
+        if (!await this.#check_interact_timeout(name)) {
+            this.#logger.debug(`interact rejected due to player ${name} spam requests`);
+            return false;
+        }
 
         const player = await this.#db.findOneAsync({name});
-        if (Math.hypot(player.x - pos.x, player.y - pos.y) > this.#abilities.reach_distance)
+        if (Math.hypot(player.x - pos.x, player.y - pos.y) > this.#abilities.reach_distance) {
+            this.#logger.debug(`interact rejected due to player trying to reach far object`,
+                pretty_print({
+                    name,
+                    distance: Math.hypot(player.x - pos.x, player.y - pos.y),
+                    max_allowed: this.#abilities.reach_distance,
+                }));
             return false;
+        }
 
         pos = {
             x: Math.floor(pos.x),
@@ -207,23 +234,105 @@ export class PlayerList {
         const resps = await Promise.all(gardens.map(async x => await x.has_plant(pos) && x));
         /** @type {IGarden} */
         const garden = resps.find(x => !!x);
-        if (!garden)
+        if (!garden) {
+            this.#logger.debug('Plant is not exist here:', pretty_print(pos));
             return false;
+        }
 
         const resp = await garden.interact(pos);
-        if (!resp)
+        if (!resp) {
+            this.#logger.debug('Garden rejected interaction', pretty_print({...pos, name}));
             return false;
+        }
 
         const {weed_removed, seed, amount} = resp;
 
-        if (weed_removed)
+        if (weed_removed) {
             inc(player.stats, 'weed_removed', 1);
+            this.#logger.debug('Weed removed', pretty_print({...pos, name}));
+        }
         if (amount) {
             inc(player.stats, 'plant_collected', 1);
             inc(player.container, seed, amount);
+            this.#logger.debug('Plant collected', pretty_print({...pos, name}));
         }
 
         return await this.#update_one(pick(player, 'name'), pick(player, 'stats', 'container'));
+    }
+
+    /**
+     * Plant seed in garden
+     * @param name {string}
+     * @param x {number}
+     * @param y {number}
+     * @param seed {number}
+     * @param gardens {IGarden[]}
+     * @returns {Promise<boolean>}
+     */
+    async plant(name, {x, y}, seed, gardens) {
+        // seed exists
+        const seed_obj = seed_from_id(seed);
+        if (!seed_obj) {
+            this.#logger.debug(`Unknown seed: ${seed}`);
+            return false;
+        }
+
+        // checking interaction
+        if (!await this.#check_interact_timeout(name)) return false;
+
+        // retreiving player
+        const player = await this.#db.findOneAsync({name});
+        if (!player) {
+            this.#logger.debug(`No player founded: ${name}`);
+            return false;
+        }
+
+        // checking seed amount
+        if (!Number.isFinite(player.container[seed]) || player.container[seed] < 1) {
+            this.#logger.debug(`No seed=${seed} available: ${player.container[seed]}`);
+            return false;
+        }
+
+        const pos = {
+            x: Math.floor(x),
+            y: Math.floor(y),
+        };
+
+        // checking if place is taken
+        const has_plants = await Promise.all(gardens.map(x => x.has_plant(pos)));
+        if (has_plants.some(x => !!x)) {
+            this.#logger.debug('this pos is taken', pretty_print(pos));
+            return false;
+        }
+
+        const counts = await Promise.all(gardens.map(g => g.count().then(x => ({
+            garden: g,
+            count: x,
+        }))));
+
+        // soring from min plants to max
+        for (const min of new Set(counts.map(x => x.count).sort())) {
+            // selecting gardens to check
+            for (let garden of counts.filter(x => x.count == min).map(x => x.garden)) {
+                // trying to add plant
+                if (await garden.add_plants({...pos, seed})) {
+
+                    this.#logger.debug(garden.toString(), 'plant seed:', pretty_print({...pos, seed: seed_obj.name}));
+                    if (!await this.#update_one({name}, {
+                        $inc: {
+                            [`container.${seed}`]: -1,
+                            'stats.planted': 1,
+                        }
+                    })) {
+                        this.#logger.error(`Cannot update player ${name}`);
+                    }
+
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

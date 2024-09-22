@@ -38,6 +38,29 @@ describe("Player", function () {
     /*** @type {PlayerList}*/
     let list;
 
+    /**
+     * Wait for promise and immitating timeout to prevent spamming
+     * @template T
+     * @param promise {Promise<T>}
+     * @param _assert {number | {val: any, msg: string}}
+     * @returns {Promise<T>}
+     */
+    const wi = async (promise, _assert = null) => {
+        if (promise) {
+            const result = await promise;
+            if (_assert) {
+                const {val, msg} = _assert;
+                de(result, val, msg);
+            }
+        }
+
+        if (list.t.abilities.timeout) {
+            await sb.clock.tickAsync(list.t.abilities.timeout + 1);
+        }
+
+        return await promise;
+    };
+
     beforeEach(async () => {
         set_min_level('error');
 
@@ -266,26 +289,6 @@ describe("Player", function () {
 
     describe('interact', () => {
         describe('works', () => {
-            /**
-             * Wait for promise and immitating timeout to prevent spamming
-             * @param promise {Promise}
-             * @param _assert {number | {val: any, msg: string}}
-             * @returns {Promise<number>}
-             */
-            const wi = async (promise, _assert = null) => {
-                if (promise) {
-                    const result = await promise;
-                    if (_assert) {
-                        const {val, msg} = _assert;
-                        de(result, val, msg);
-                    }
-                }
-
-                if (list.t.abilities.timeout) {
-                    await sb.clock.tickAsync(list.t.abilities.timeout + 1);
-                }
-            };
-
             it('collect every plant', async () => {
                 sb.stub(Math, 'random').returns(1);
 
@@ -378,6 +381,96 @@ describe("Player", function () {
 
                     const [upd_plant] = await gardens[plant.y].t.find(pick(plant, 'x', 'y'));
                     de(upd_plant.dmg, false, 'Plant should be healthy');
+                }
+            });
+        });
+        describe('throws', () => {
+            it('out_of_range', async () => {
+                sb.stub(Math, 'random').returns(1);
+
+                // grow all plants
+                await Promise.all(gardens.map(x => grow_all_async(sb, x)));
+
+                const name = 'name';
+                await wi(list.set_online(name, true));
+
+
+                for (let y = 0; y < 2; y++) {
+
+                    await wi(list.teleport(name, {x: 0, y}), {
+                        val: true,
+                        msg: 'Can teleport to ' + pretty_print({x: 0, y}),
+                    });
+
+                    for (let x = 0; x < 100; x++) {
+
+                        for (let y1 = 0; y1 < 10; y1++) {
+                            for (let x1 = 0; x1 < 100; x1++) {
+                                if (Math.hypot(x - x1, y - y1) > list.t.abilities.reach_distance) {
+                                    await wi(list.interact(name, {x: x1, y: y1}), {
+                                        val: false,
+                                        msg: `Cannot react position:` + pretty_print({
+                                            from: pretty_print({x, y}),
+                                            to: pretty_print({x: x1, y: y1}),
+                                            max_distance: list.t.abilities.reach_distance,
+                                            distance: Math.hypot(x - x1, y - y1),
+                                        }),
+                                    })
+                                }
+                            }
+                        }
+
+                        await wi(list.set_pos(name, {x_delta: 1, y_delta: 0}), {
+                            val: true,
+                            msg: 'Can move x-forward ',
+                        });
+                    }
+                }
+            });
+        });
+    });
+
+    describe('plant', () => {
+        describe('works', () => {
+            it('register and plant', async () => {
+                sb.stub(Math, 'random').returns(1);
+
+                const name = 'name';
+
+                const {container} = await wi(list.set_online(name, true));
+                let x = 10_000;
+                await wi(list.teleport(name, {x, y: 0}), {val: true, msg: 'PLayer can teleport'});
+
+                // remember total seeds player have
+                const total = Object.values(container).reduce((s, c) => s + c, 0);
+                const existing_plants = (await Promise.all(gardens.map(x => x.count())))
+                    .reduce((s, c) => s + c, 0);
+
+                for (let [seed, count] of Object.entries(container)) {
+                    for (let i = 0; i < count; i++) {
+                        const pos = {x, y: 0};
+                        await wi(list.plant(name, pos, +seed, gardens), {
+                            val: true,
+                            msg: 'Can plant here:' + pretty_print(pos),
+                        });
+                        await wi(list.set_pos(name, {x_delta: 1, y_delta: 0}), {val: true, msg: 'Player can move'});
+                        x++;
+                    }
+                }
+
+                const current = (await Promise.all(gardens.map(x => x.count())))
+                    .reduce((s, c) => s + c, 0);
+
+                de(current, total + existing_plants, `Plants are missing`, pretty_print({
+                    current,
+                    player_seed_count: total,
+                    before_planting: existing_plants,
+                }));
+
+                for (let x = 0; x <= total; x++) {
+                    const pos = {x, y: 0};
+                    const responses = await Promise.all(gardens.map(x => x.has_plant(pos)));
+                    de(responses.some(x => x), true, 'Must have plant here:' + pretty_print(pos));
                 }
             });
         });
