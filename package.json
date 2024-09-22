@@ -1,16 +1,19 @@
 {
   "name": "garden",
   "type": "module",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {},
+  "version": "0.0.1",
+  "scripts": {
+    "server": "node server.js",
+    "test": "mocha tests/**/*.tests.js --exit --config=.mocharc.json --ui bdd --fgrep \"stress test\" --invert",
+    "stress_test": "mocha tests/**/*.tests.js --exit --config=.mocharc.json --ui bdd -f-fgrep \"stress test\""
+  },
   "keywords": [
     "garden",
     "game"
   ],
   "author": "Oshi41",
   "license": "MIT",
-  "description": "",
+  "description": "Simple multi-online garden hosted as Telegram Web App",
   "dependencies": {
     "@seald-io/nedb": "latest"
   },

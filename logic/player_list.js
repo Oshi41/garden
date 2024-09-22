@@ -33,7 +33,6 @@ import {all_seeds, seed_from_id} from "../data/seed.js";
  * @property {Partial<PlayerStats>} stats
  */
 
-/*** @typedef {Pick<Garden, 'has_plant' | 'add_plants' | 'interact' | 'count'>} IGarden*/
 
 /**
  * @type {PlayerAbilities}

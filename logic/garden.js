@@ -20,6 +20,8 @@ const mandatory_fields = ['x', 'y', 'seed'];
 /*** @type {(keyof PlantData)[]}*/
 const int_fields = [...mandatory_fields, 'stage'];
 
+/*** @typedef {Pick<Garden, 'has_plant' | 'add_plants' | 'interact' | 'count'>} IGarden*/
+
 export class Garden {
     /** @type {Database<PlantData>}*/
     #db;

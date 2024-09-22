@@ -3,7 +3,7 @@ import {PlayerList} from '../logic/player_list.js';
 import sinon from "sinon";
 import {all_seeds, seed_from_id} from "../data/seed.js";
 import {deepEqual as de, fail} from "assert";
-import {pick, pretty_print} from "../util/_.js";
+import {fake_time, pick, pretty_print, stub_carefully} from "../util/_.js";
 import {set_min_level} from "../util/logger.js";
 import {Table} from "../data/storage.js";
 import {grow_all_async} from "./garden_utils.js";
@@ -37,6 +37,8 @@ describe("Player", function () {
     const gardens = [];
     /*** @type {PlayerList}*/
     let list;
+    /*** @type {Sinon.SinonStub<[], number>}*/
+    let random_stub;
 
     /**
      * Wait for promise and immitating timeout to prevent spamming
@@ -64,9 +66,11 @@ describe("Player", function () {
     beforeEach(async () => {
         set_min_level('error');
 
+        random_stub?.restore();
         sb?.restore();
         sb = sinon.createSandbox();
-        sb.useFakeTimers({toFake: ['setTimeout', 'setInterval', 'Date', 'clearTimeout', 'clearInterval']});
+        fake_time(sb);
+        random_stub = stub_carefully(sb, Math, 'random');
 
         gardens.length = 0;
 
@@ -216,6 +220,8 @@ describe("Player", function () {
                 }
             });
             it('random poses during register', async () => {
+                random_stub.restore();
+
                 /*** @type {Table<boolean>}*/
                 const table = new Table();
 
@@ -290,7 +296,7 @@ describe("Player", function () {
     describe('interact', () => {
         describe('works', () => {
             it('collect every plant', async () => {
-                sb.stub(Math, 'random').returns(1);
+                random_stub.returns(1);
 
                 // ignore speed for now
                 list.t.abilities.max_speed = Number.MAX_SAFE_INTEGER;
@@ -345,7 +351,7 @@ describe("Player", function () {
                 de(plants.flatMap(x => x), [], 'All plants must be collected');
             });
             it('remove weed', async () => {
-                sb.stub(Math, 'random').returns(0);
+                random_stub.returns(0);
 
                 // ignore speed for now
                 list.t.abilities.max_speed = Number.MAX_SAFE_INTEGER;
@@ -386,7 +392,7 @@ describe("Player", function () {
         });
         describe('throws', () => {
             it('out_of_range', async () => {
-                sb.stub(Math, 'random').returns(1);
+                random_stub.returns(1);
 
                 // grow all plants
                 await Promise.all(gardens.map(x => grow_all_async(sb, x)));
@@ -431,9 +437,10 @@ describe("Player", function () {
     });
 
     describe('plant', () => {
+
         describe('works', () => {
             it('register and plant', async () => {
-                sb.stub(Math, 'random').returns(1);
+                random_stub.returns(1);
 
                 const name = 'name';
 

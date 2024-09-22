@@ -120,6 +120,44 @@ export function arr(arg = []) {
 }
 
 export function is_in_test() {
-    return ['NODE_TEST_CONTEXT', 'MOCHA_COLORS']
-        .some(x => process.env.hasOwnProperty(x));
+    if (typeof process != 'undefined') {
+
+        if (['NODE_TEST_CONTEXT', 'MOCHA_COLORS'].some(x => process?.env?.hasOwnProperty(x)))
+            return true;
+
+        if (process.env.ENV == 'TEST')
+            return true;
+    }
+
+    return false;
+}
+
+/**
+ *
+ * @param sb {sinon.SinonSandbox}
+ */
+export function fake_time(sb) {
+    if (sb) {
+        if (setTimeout.clock) {
+            sb.clock = setTimeout.clock;
+        } else {
+            sb.useFakeTimers({toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval']});
+        }
+    }
+}
+
+/**
+ *
+ * @template T
+ * @param sb {sinon.SinonSandbox}
+ * @param obj {T}
+ * @param path {keyof T}
+ */
+export function stub_carefully(sb, obj, path) {
+    if (sb && obj && path) {
+        const prop = obj[path];
+        return prop?.isSinonProxy
+            ? prop
+            : sb.stub(obj, path);
+    }
 }

@@ -1,4 +1,7 @@
 {
   "timeout": 20000,
-  "--exit": true
+  "--exit": true,
+  "node-option": [
+    "env-file=tests/.env"
+  ]
 }

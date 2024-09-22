@@ -2,16 +2,23 @@ import {deepEqual as de} from 'assert'
 import sinon from 'sinon';
 import {Garden} from "../logic/garden.js";
 import {all_seeds, Seed, seed_from_id} from "../data/seed.js";
-import {range} from "../util/_.js";
+import {fake_time, range, stub_carefully} from "../util/_.js";
 import {set_min_level} from "../util/logger.js";
 import {grow_all_async} from "./garden_utils.js";
 
 describe('Garden', () => {
     /*** @type {SinonSandbox}*/
     let sb;
+
+    /*** @type {Sinon.SinonStub<[], number>}*/
+    let random_stub;
+
     beforeEach(() => {
-        sb?.restore()
-        sb = sinon.createSandbox({});
+        sinon.clock?.restore();
+        random_stub?.restore();
+        sb?.restore();
+        sb = sinon.createSandbox();
+        random_stub = stub_carefully(sb, Math, 'random');
         set_min_level('none');
     });
 
@@ -24,9 +31,9 @@ describe('Garden', () => {
             const amounts = [7000, 15_000];
 
             beforeEach(async () => {
-                sb.stub(Math, 'random').returns(1);
+                random_stub.returns(1);
+                fake_time(sb);
 
-                sb.useFakeTimers({toFake: ['setTimeout', 'setInterval', 'Date', 'clearTimeout', 'clearInterval']});
                 garden = new Garden({inMemoryOnly: true});
                 await garden.init();
 
@@ -65,7 +72,7 @@ describe('Garden', () => {
             const amounts = [7000, 15_000];
 
             beforeEach(async () => {
-                sb.stub(Math, 'random').returns(1);
+                random_stub.returns(1);
 
                 garden = new Garden({inMemoryOnly: true});
                 await garden.init();
@@ -102,7 +109,8 @@ describe('Garden', () => {
         let garden;
 
         beforeEach(async () => {
-            sb.useFakeTimers({toFake: ['setTimeout', 'setInterval', 'Date', 'clearTimeout', 'clearInterval', 'hrtime']});
+            fake_time(sb);
+
             garden = new Garden({inMemoryOnly: true});
             await garden.init();
 
@@ -121,7 +129,7 @@ describe('Garden', () => {
 
         describe('random', () => {
             it('all failed', async () => {
-                sb.stub(Math, 'random').returns(0);
+                random_stub.returns(0);
 
                 await grow_all_async(sb, garden);
 
@@ -131,7 +139,7 @@ describe('Garden', () => {
 
             for (let {name, fragility, index} of all_seeds()) {
                 it(`${name} seed fragility`, async () => {
-                    sb.stub(Math, 'random').returns(fragility - Number.EPSILON);
+                    random_stub.returns(fragility - Number.EPSILON);
 
                     await grow_all_async(sb, garden, true);
 
@@ -143,7 +151,7 @@ describe('Garden', () => {
 
         describe('interact', () => {
             it('remove weed', async () => {
-                sb.stub(Math, 'random').returns(0);
+                random_stub.returns(0);
 
                 while ((await garden.t.find({dmg: false})).length) {
                     const wait = Math.max(...all_seeds().map(x => x.per_stage))
@@ -155,14 +163,14 @@ describe('Garden', () => {
 
                 for (let plant of search) {
                     const res = await garden.interact(plant);
-                    de(res, {damaged: false});
+                    de(res, {weed_removed: true});
                 }
 
                 search = await garden.t.find({dmg: true});
                 de(search, [], 'All plants should be healthy');
             });
             it('collect', async () => {
-                sb.stub(Math, 'random').returns(1);
+                random_stub.returns(1);
 
                 await grow_all_async(sb, garden);
 
